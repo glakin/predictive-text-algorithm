@@ -1,0 +1,330 @@
+---
+title: "Text Data Exploration"
+author: "Jerry Lakin"
+date: "10/25/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+## Introduction
+
+The purpose of this report is to provide an initial investigation of the text data that we have been provided from SwiftKey for the Johns Hopkins Data Science Capstone course. Our goal will be to load the data into R, clean it, process it and answer a few basic questions such as:
+ * What are the most common words found in the data?
+ * What are the most common 2- and 3-grams?
+ * How large would our dictionary need to be in order to contain 50% of the total words in the data? 90%?
+ 
+Our data includes 3 sources: Twitter, blogs and news. In this report we will primarily focus on the blogs data, but analysis of the other sources will be availale in the Appendix
+
+## Loading and Processing the Data
+
+We'll load the data and limit our analysis to 10,000 records. This is done to reduce the computation time. After that, we'll use regular expressions to remove all numbers from the data and convert from UTF8 to ASCII characters in order to remove accents.
+
+```{r load}
+library(dplyr)
+
+blogs <- readLines("data/en_US/en_US.blogs.txt")
+blogs_sample <- blogs[1:10000]
+
+blog_df <- tibble(Text = blogs )%>%
+ mutate( Text = gsub(x=Text, pattern = "[0-9]+", replacement = "")) %>%
+ mutate( Text = iconv(Text, from = "UTF-8", to = "ASCII//TRANSLIT"))
+```
+
+## Wordcounts
+
+Next we will break our data into individual words using the tidytext package and count the top words in the sample. Because the most common words by far will be stop words such as "in" and "the", we will take steps to remove these from our sample.
+
+```{r wordcount}
+library(tidytext)
+library(tidyr)
+library(stopwords)
+library(ggplot2)
+library(stringr)
+
+blog_wordcounts <- blog_df %>%
+  unnest_tokens(output = word, input = Text) %>%
+  anti_join(stop_words) %>%
+  drop_na() %>%
+  count(word, sort = TRUE)
+
+blog_wordcount_plot <- ggplot(data = head(blog_wordcounts, n=10), aes(x = reorder(word, -n), y = n)) +
+  geom_bar(stat="identity", color = "black", fill = "slategray2") +
+  labs(title = "Most Common Words (10k Blog Sample, Stopwords Removed)", x = "Word", y = "Count") +
+  theme(plot.title = element_text(size=14, face="bold", margin = margin(10, 0, 10, 0)),
+        axis.title = element_text(size=11),
+        axis.text.x = element_text(size=11, vjust=0.5),
+        axis.text.y = element_text(size=11, vjust=0.5),
+        axis.ticks.x = element_blank()) +
+  geom_text(aes(label = n, y = n + 2500),
+            position = position_dodge(0.9), size=4)
+
+blog_wordcount_plot
+```
+
+## 2-grams and 3-grams
+
+Next we want to investigate the most common 2- and 3-grams in the data. Because these phrases are very likely to include stop words, and because our algorithm will need to consider stop words when predicting text, we will leave the stop words in the sample for this portion of the analysis. 
+
+```{r ngrams}
+blog_bigramcounts <- blog_df %>%
+  unnest_tokens(bigram, Text, token = "ngrams", n=2) %>%
+  drop_na() %>%
+  count(bigram, sort = TRUE)
+
+blog_trigramcounts <- blog_df %>%
+  unnest_tokens(trigram, Text, token = "ngrams", n=3) %>%
+  drop_na() %>%
+  count(trigram, sort = TRUE)
+
+
+blog_bigram_plot <- ggplot(data = head(blog_bigramcounts, n=10), aes(x = reorder(bigram, -n), y = n)) +
+  geom_bar(stat="identity", color = "black", fill = "slategray2") +
+  labs(title = "Most Common Bigrams (10k Blog Sample)", x = "Bigram", y = "Count") +
+  theme(plot.title = element_text(size=14, face="bold",
+                                  margin = margin(10, 0, 10, 0)),
+        axis.title = element_text(size=11),
+        axis.text.x = element_text(size=11, vjust=0.5),
+        axis.text.y = element_text(size=11, vjust=0.5),
+        axis.ticks.x = element_blank()) +
+  geom_text(aes(label = n, y = n + 4200),
+            position = position_dodge(0.9), size=4) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 8))
+
+blog_trigram_plot <- ggplot(data = head(blog_trigramcounts, n=10), aes(x = reorder(trigram, -n), y = n)) +
+  geom_bar(stat="identity", color = "black", fill = "slategray2") +
+  labs(title = "Most Common Trigrams (10k Blog Sample)", x = "Trigram", y = "Count") +
+  theme(plot.title = element_text(size=14, face="bold",
+                                  margin = margin(10, 0, 10, 0)),
+        axis.title = element_text(size=11),
+        axis.text.x = element_text(size=11, vjust=0.5),
+        axis.text.y = element_text(size=11, vjust=0.5),
+        axis.ticks.x = element_blank()) +
+  geom_text(aes(label = n, y = n + 420),
+            position = position_dodge(0.9), size=4) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 8))
+
+blog_bigram_plot
+blog_trigram_plot
+```
+
+## Dictionary Size
+
+The next step is to determine how large our dictionary would need to be in order to cover x% of all word instances in the sample. In an effort to look at the size of the tail on our data, we will be answering this question for x=50% and x=90%. We will accomplish this by measuring the total number of word instances in the sample and looping through the word count dataframe until we reach the targeted percentage.
+
+```{r dictionary}
+blog_word_total <- sum(blog_wordcounts$n)
+
+for (i in 1:length(blog_wordcounts$word)) {
+  if (sum(blog_wordcounts[1:i,2]) >= (blog_word_total*0.5)) {
+    i_50 <- i
+    break
+  }
+}
+
+
+for (i in 1:length(blog_wordcounts$word)) {
+  if (sum(blog_wordcounts[1:i,2]) >= (blog_word_total*0.9)) {
+    i_90 <- i
+    break
+  }
+}
+
+print(paste('The dictionary size required to cover 50% of word instances in the blogs dataset is',i_50,'. The word found at this position in the sample is "',blog_wordcounts[i_50,1],'"'))
+
+print(paste('The dictionary size required to cover 90% of word instances in the blogs dataset is',i_90,'. The word found at this position in the sample is "',blog_wordcounts[i_90,1],'"'))
+
+```
+
+## Conclusions
+
+One of the primary takeaways from our analysis is that our text data is highly skewed toward a relatively small number of very common words. Our most common non-stopword was "time", a word that contained more than double the number of instances of all but two other non-stopwords in the dictionary. Additionally, we were able to account for half of all word instances using just 1649 words, but we needed more than 1200% more words in order to account for 90% of word instances. We will need to consider how sensitive we want our model to be and we may discover that it will perform better using a smaller dictionary that accounts only for the more common words. 
+
+Our investigation of n-grams shows that the most common short phrases we will expect to see will consist exclusively of stopwords. The results here are similarly skewed heavily toward the top phrases. The top two 2-grams, "of the" and "in the" have nearly double the instances of the next most common 2-gram. The two most common 3-grams, "one of the" and "a lot of" also have nearly double the instances of the next most common. Further investigation is recommended, but it is likely that the 2- and 3-gram distributions have a similar shape to the word distributions, with a majority of instances covered by a fairly small segment of the dictionary.
+
+## Appendix
+
+Below we will show the results of the above analysis using the Twitter and news datasets. The code will follow the same pattern as we've seen above, the code will be omitted.
+
+```{r appendix, echo = FALSE}
+twitter <- readLines("data/en_US/en_US.twitter.txt")
+news <- readLines("data/en_us/en_US.news.txt")
+
+twitter_sample <- twitter[1:10000]
+news_sample <- news[1:10000]
+
+twitter_df <- tibble(Text = twitter_sample) %>%
+  mutate( Text = gsub(x=Text, pattern = "[0-9]+", replacement = "")) %>%
+  mutate( Text = iconv(Text, from = "UTF-8", to = "ASCII//TRANSLIT"))
+
+twitter_wordcounts <- twitter_df %>%
+  unnest_tokens(output = word, input = Text )%>%
+  anti_join(stop_words) %>%
+  drop_na() %>%
+  count(word, sort = TRUE)
+
+news_df <- tibble(Text = news) %>%
+  mutate( Text = gsub(x=Text, pattern = "[0-9]+", replacement = "")) %>%
+  mutate( Text = iconv(Text, from = "UTF-8", to = "ASCII//TRANSLIT"))
+
+news_wordcounts <- news_df %>%
+  unnest_tokens(output = word, input = Text) %>%
+  anti_join(stop_words) %>%
+  drop_na() %>%
+  count(word, sort = TRUE)
+
+twitter_bigramcounts <- twitter_df %>% 
+  unnest_tokens(bigram, Text, token = "ngrams", n=2) %>%
+  drop_na() %>%
+  count(bigram, sort = TRUE)
+
+news_bigramcounts <- news_df %>%
+  unnest_tokens(bigram, Text, token = "ngrams", n=2) %>%
+  drop_na() %>%
+  count(bigram, sort = TRUE)
+
+twitter_trigramcounts <- twitter_df %>% 
+  unnest_tokens(trigram, Text, token = "ngrams", n=3) %>%
+  drop_na() %>%
+  count(trigram, sort = TRUE) 
+
+news_trigramcounts <- news_df %>%
+  unnest_tokens(trigram, Text, token = "ngrams", n=3) %>%
+  drop_na() %>%
+  count(trigram, sort = TRUE)
+```
+
+### Twitter
+
+```{r, twitter_plots, echo = FALSE}
+twitter_wordcount_plot <- ggplot(data = head(twitter_wordcounts, n=10), aes(x = reorder(word, -n), y = n)) +
+  geom_bar(stat="identity", color = "black", fill = "slategray2") +
+  labs(title = "Most Common Words (20k Tweet Sample, Stopwords Removed)", x = "Word", y = "Count") +
+  theme(plot.title = element_text(size=14, face="bold",
+                                  margin = margin(10, 0, 10, 0)),
+        axis.title = element_text(size=11),
+        axis.text.x = element_text(size=11, vjust=0.5),
+        axis.text.y = element_text(size=11, vjust=0.5),
+        axis.ticks.x = element_blank()) +
+  geom_text(aes(label = n, y = n + 15),
+            position = position_dodge(0.9), size=4)
+
+twitter_bigram_plot <- ggplot(data = head(twitter_bigramcounts, n=10), aes(x = reorder(bigram, -n), y = n)) +
+  geom_bar(stat="identity", color = "black", fill = "slategray2") +
+  labs(title = "Most Common Bigrams (20k Tweet Sample)", x = "Bigram", y = "Count") +
+  theme(plot.title = element_text(size=14, face="bold",
+                                  margin = margin(10, 0, 10, 0)),
+        axis.title = element_text(size=11),
+        axis.text.x = element_text(size=11, vjust=0.5),
+        axis.text.y = element_text(size=11, vjust=0.5),
+        axis.ticks.x = element_blank()) +
+  geom_text(aes(label = n, y = n + 10),
+            position = position_dodge(0.9), size=4) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 8))
+
+twitter_trigram_plot <- ggplot(data = head(twitter_trigramcounts, n=10), aes(x = reorder(trigram, -n), y = n)) +
+  geom_bar(stat="identity", color = "black", fill = "slategray2") +
+  labs(title = "Most Common Trigrams (20k Tweet Sample)", x = "Trigram", y = "Count") +
+  theme(plot.title = element_text(size=14, face="bold",
+                                  margin = margin(10, 0, 10, 0)),
+        axis.title = element_text(size=11),
+        axis.text.x = element_text(size=11, vjust=0.5),
+        axis.text.y = element_text(size=11, vjust=0.5),
+        axis.ticks.x = element_blank()) +
+  geom_text(aes(label = n, y = n + 4),
+            position = position_dodge(0.9), size=4) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 8))
+
+twitter_wordcount_plot
+twitter_bigram_plot
+twitter_trigram_plot
+
+twitter_word_total <- sum(twitter_wordcounts$n)
+
+for (i in 1:length(twitter_wordcounts$word)) {
+  if (sum(twitter_wordcounts[1:i,2]) >= (twitter_word_total*0.5)) {
+    it_50 <- i
+    break
+  }
+}
+
+
+for (i in 1:length(twitter_wordcounts$word)) {
+  if (sum(twitter_wordcounts[1:i,2]) >= (twitter_word_total*0.9)) {
+    it_90 <- i
+    break
+  }
+}
+
+print(paste('The dictionary size required to cover 50% of word instances in the Twitter dataset is',it_50,'. The word found at this position in the sample is "',twitter_wordcounts[it_50,1],'"'))
+
+print(paste('The dictionary size required to cover 90% of word instances in the Twitter dataset is',it_90,'. The word found at this position in the sample is "',twitter_wordcounts[it_90,1],'"'))
+```
+
+### News 
+
+```{r news_plots, echo = FALSE}
+news_wordcount_plot <- ggplot(data = head(news_wordcounts, n=10), aes(x = reorder(word, -n), y = n)) +
+  geom_bar(stat="identity", color = "black", fill = "slategray2") +
+  labs(title = "Most Common Words (20k Article Sample, Stopwords Removed)", x = "Word", y = "Count") +
+  theme(plot.title = element_text(size=14, face="bold",
+                                  margin = margin(10, 0, 10, 0)),
+        axis.title = element_text(size=11),
+        axis.text.x = element_text(size=11, vjust=0.5),
+        axis.text.y = element_text(size=11, vjust=0.5),
+        axis.ticks.x = element_blank()) +
+  geom_text(aes(label = n, y = n + 110),
+            position = position_dodge(0.9), size=4)
+
+news_bigram_plot <- ggplot(data = head(news_bigramcounts, n=10), aes(x = reorder(bigram, -n), y = n)) +
+  geom_bar(stat="identity", color = "black", fill = "slategray2") +
+  labs(title = "Most Common Bigrams (20k Article Sample)", x = "Bigram", y = "Count") +
+  theme(plot.title = element_text(size=14, face="bold",
+                                  margin = margin(10, 0, 10, 0)),
+        axis.title = element_text(size=11),
+        axis.text.x = element_text(size=11, vjust=0.5),
+        axis.text.y = element_text(size=11, vjust=0.5),
+        axis.ticks.x = element_blank()) +
+  geom_text(aes(label = n, y = n + 380),
+            position = position_dodge(0.9), size=4)
+
+news_trigram_plot <- ggplot(data = head(news_trigramcounts, n=10), aes(x = reorder(trigram, -n), y = n)) +
+  geom_bar(stat="identity", color = "black", fill = "slategray2") +
+  labs(title = "Most Common Trigrams (20k Article Sample)", x = "Trigram", y = "Count") +
+  theme(plot.title = element_text(size=14, face="bold",
+                                  margin = margin(10, 0, 10, 0)),
+        axis.title = element_text(size=11),
+        axis.text.x = element_text(size=11, vjust=0.5),
+        axis.text.y = element_text(size=11, vjust=0.5),
+        axis.ticks.x = element_blank()) +
+  geom_text(aes(label = n, y = n + 30),
+            position = position_dodge(0.9), size=4) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 8))
+
+news_wordcount_plot
+news_bigram_plot
+news_trigram_plot
+
+news_word_total <- sum(news_wordcounts$n)
+
+for (i in 1:length(news_wordcounts$word)) {
+  if (sum(news_wordcounts[1:i,2]) >= (news_word_total*0.5)) {
+    in_50 <- i
+    break
+  }
+}
+
+
+for (i in 1:length(news_wordcounts$word)) {
+  if (sum(news_wordcounts[1:i,2]) >= (news_word_total*0.9)) {
+    in_90 <- i
+    break
+  }
+}
+
+print(paste('The dictionary size required to cover 50% of word instances in the news dataset is',in_50,'. The word found at this position in the sample is "',news_wordcounts[in_50,1],'"'))
+
+print(paste('The dictionary size required to cover 90% of word instances in the news dataset is',in_90,'. The word found at this position in the sample is "',news_wordcounts[in_90,1],'"'))
+```
