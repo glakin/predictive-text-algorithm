@@ -48,13 +48,14 @@ for (i in 1:5) {
   
 }
 
-freq_table$output <- lapply(freq_table$element, word, start=-1)
+freq_table$output <- unlist(lapply(freq_table$element, word, start=-1))
 freq_table$input <- NA
-freq_table[freq_table$n != 1,]$input <- lapply(freq_table[freq_table$n != 1,]$element, word, start=1, end=-2)
+freq_table[freq_table$n != 1,]$input <- unlist(lapply(freq_table[freq_table$n != 1,]$element, word, start=1, end=-2))
 
 freq_table <- freq_table %>%
   relocate(input, .after=element) %>%
-  relocate(output, .after=input)
+  relocate(output, .after=input) %>%
+  subset(select = -(element))
 
 #input_freq <- freq_table %>% 
 #  group_by(input) %>% 
@@ -75,18 +76,33 @@ ngram_model <- function(input_text, freq_table) {
     input_trim <- word(input_text, start=-i+1, end=-1)
     
     df <- freq_table[freq_table$input==input_trim & freq_table$n==i,] %>%
-      drop_na(element)
+      drop_na(output)
     
-    if(length(df$element)>0) {
+    #df <- freq_table[freq_table$input==input_trim ,] %>%
+    #  drop_na(output)
+    
+    #start_time2 <- Sys.time()
+    
+    #df2 <- freq_table %>%
+    #  filter(n == i) %>%
+    #  filter(input == input_trim) %>%
+    #  drop_na(output)
+    
+    #end_time2 <- Sys.time()
+    
+    #df <- freq_table[word(freq_table$element, start=1, end=-2)==input_trim & freq_table$n==i,] %>%
+    #  drop_na(element)
+    
+    if(length(df$input)>0) {
       df$probability <- df$frequency/sum(df$frequency)
       output_text <- sample(df$output, size=1, prob=df$probability )
       #output_text <- df[which.max(df$frequency),]$output
       #print(i)
       break
-    } #else {
+    }# else {
       # Laplace smoothing
       
-   # }
+    #}
   }
   
   return(output_text)
