@@ -1,3 +1,11 @@
+######################################
+### TO DO
+### - Find way to shrink size of freq_table
+### - Add section pulling out test data
+### - Set up section to test model on test data
+### - Improve model performance
+
+
 
 library(dplyr)
 library(tidytext)
@@ -26,13 +34,22 @@ for (i in 1:length(text_source)) {
 
 }
 
+# Download list of bad words file if it doesn't exist
+if(!file.exists('data/bad_words.txt')){
+  url <- 'https://raw.githubusercontent.com/RobertJGabriel/Google-profanity-words/master/list.txt'
+  download.file(url, 'data/bad_words.txt')
+}
+
+bad_words <- read.table('data/bad_words.txt')
+
 all_texts <- all_texts %>%
+  mutate( text = gsub(x=text, pattern = paste(bad_words$V1, collapse = '|'), replacement = "")) %>%
   mutate( text = gsub(x=text, pattern = "[0-9]+", replacement = "")) %>%
   mutate( text = iconv(text, from = "UTF-8", to = "ASCII//TRANSLIT"))
 
 freq_table <- data.frame()
 
-for (i in 1:5) {
+for (i in 1:4) {
   cols <- c("element", "frequency", "n")
   
   df1 <- all_texts %>% 
@@ -57,12 +74,9 @@ freq_table <- freq_table %>%
   relocate(output, .after=input) %>%
   subset(select = -(element))
 
-#input_freq <- freq_table %>% 
-#  group_by(input) %>% 
-#  summarize(input_freq = sum(frequency))
+write.csv(freq_table, file = "data/freq_table.csv")
 
-#freq_table <- left_join(freq_table, input_freq, by=input, keep=FALSE)
-
+#Define the function
 ngram_model <- function(input_text, freq_table) {
   
   input_text <- gsub(x=input_text, pattern = "[0-9]+", replacement = "")
@@ -111,35 +125,35 @@ ngram_model <- function(input_text, freq_table) {
 
 ######## MARKOV CHAINS ###########
 
-library(dplyr)
-library(tidytext)
-library(tidyr)
-library(R.utils)
-library(stringr)
-library(markovchain)
-library(R.utils)
-
-readpct <- 0.1
-
-twitter_path <- "data/en_US/en_US.twitter.txt"
-blogs_path <- "data/en_US/en_US.blogs.txt"
-news_path <- "data/en_us/en_US.news.txt"
-
-twitter_lines <- countLines(twitter_path)
-blogs_lines <- countLines(blogs_path)
-news_lines <- countLines(news_path)
-
-twitter <- readLines(twitter_path, round(readpct*twitter_lines))
-blogs <- readLines(blogs_path, round(readpct*blogs_lines))
-news <- readLines(news_path, round(readpct*news_lines))
-
-text_df <- rbind(tibble(text = twitter),
-                 tibble(text = blogs),
-                 tibble(text = news)) %>%
-  mutate(text = gsub(x=text, pattern = "[0-9]+", replacement = "")) %>%
-  mutate(text = iconv(text, from = "UTF-8", to = "ASCII//TRANSLIT"))
-
-unigrams <- text_df %>%
-  unnest_tokens(output = word, input = text)
-
-unigram_markov <- markovchainFit(unigrams)
+# library(dplyr)
+# library(tidytext)
+# library(tidyr)
+# library(R.utils)
+# library(stringr)
+# library(markovchain)
+# library(R.utils)
+# 
+# readpct <- 0.1
+# 
+# twitter_path <- "data/en_US/en_US.twitter.txt"
+# blogs_path <- "data/en_US/en_US.blogs.txt"
+# news_path <- "data/en_us/en_US.news.txt"
+# 
+# twitter_lines <- countLines(twitter_path)
+# blogs_lines <- countLines(blogs_path)
+# news_lines <- countLines(news_path)
+# 
+# twitter <- readLines(twitter_path, round(readpct*twitter_lines))
+# blogs <- readLines(blogs_path, round(readpct*blogs_lines))
+# news <- readLines(news_path, round(readpct*news_lines))
+# 
+# text_df <- rbind(tibble(text = twitter),
+#                  tibble(text = blogs),
+#                  tibble(text = news)) %>%
+#   mutate(text = gsub(x=text, pattern = "[0-9]+", replacement = "")) %>%
+#   mutate(text = iconv(text, from = "UTF-8", to = "ASCII//TRANSLIT"))
+# 
+# unigrams <- text_df %>%
+#   unnest_tokens(output = word, input = text)
+# 
+# unigram_markov <- markovchainFit(unigrams)
