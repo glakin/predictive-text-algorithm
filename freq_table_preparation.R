@@ -76,7 +76,9 @@ freq_table <- freq_table %>%
 # confidence in them
 freq_table <- freq_table[freq_table$frequency > 1,]
 
-# Only include the top 10 
+# Only include the top 10 1-grams
+freq_table <- freq_table %>%
+  filter(n > 1 | freq_table$output %in% head(freq_table[freq_table$n == 1,]$output,10))
 
 write.csv(freq_table, file = "text_prediction_app/data/freq_table.csv", 
           row.names = FALSE)
