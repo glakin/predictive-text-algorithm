@@ -1,0 +1,70 @@
+Jerry Lakin - Johns Hopkins Data Science Specialization - Capstone Project  
+Markov Chain N-Gram Text Prediction Algorithm
+========================================================
+author: Jerry Lakin
+date: 11/21/21
+autosize: true
+
+Why Predict Text?
+========================================================
+
+As our lives become increasingly digital, more and more communication is 
+occurring online. Predictive text is a valuable tool to help people communicate
+more quickly and efficiently. The purpose of this project was to develop
+a text prediction data product that could be deployed in a user application
+in order to predict text while they are typing. 
+
+Because the goal is to use this algorithm in a user application, accuracy
+cannot be our sole focus. We also must consider the performance of the 
+application and the amount of data that it must hold in memory. Practically,
+this means that we must limit the size of the table used to generate our
+predictions, sacrificing some accuracy for performance. Additionally, 
+we must take data preparation steps such as excluding profanity to ensure 
+the app is suitable for public use.
+
+The Algorithm
+========================================================
+
+We used a sample of 10% of the ~4,000,000 lines of text data provided by
+SwiftKey to build the model. After cleaning the data, we tokenized the text
+into word groups of length n (n-grams) for n between 1 and 5. N-grams with
+only a single observation were discarded.
+
+The algorithm works by taking the last 4 words of the input text and scanning
+the table searching for a match with the first 4 words of 5-grams. If a match 
+is found, the function selects one of the corresponding "output" words, 
+using the relative frequency of the underlying 5-gram in the data set as the
+sampling probability. If no match is found the cycle repeats, looking first at
+4-grams and so on. 
+
+How the Application was Built
+========================================================
+
+The n-gram frequency table is prepared in a separate script and stored as a 
+csv. The application reads the csv and prepares a function to make predictions
+following the logic on the previous slide.
+
+We use Javascript to send a signal to the server to execute the prediction
+function any time the user presses the space button. The function executes
+three times to predict the three words that populate the buttons below the
+window.
+
+The text input box is generated with a renderUI command from the server. 
+This allows us to update the box with the selected word when a user clicks 
+a button. The button click event also immediately triggers the prediction
+function to generate three new words based on the updated string.
+
+More Information
+========================================================
+
+The app is hosted on Shinyapps.io at 
+<https://glakin.shinyapps.io/text_prediction_app/>.
+
+The code for this project can be found in the Github repo
+<https://github.com/glakin/predictive-text-algorithm>.
+
+A preliminary analysis of the text data can be found at
+<https://rpubs.com/glakin/827608>
+
+More information about the Johns Hopkins Data Science Specialization at:
+<https://www.coursera.org/specializations/jhu-data-science>

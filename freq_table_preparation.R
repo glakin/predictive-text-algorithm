@@ -46,7 +46,7 @@ all_texts <- all_texts %>%
 freq_table <- data.frame()
 
 #Build a list of ngrams for n = 1:4
-for (i in 1:4) {
+for (i in 1:5) {
   cols <- c("element", "frequency", "n")
   
   df1 <- all_texts %>% 
@@ -62,6 +62,11 @@ for (i in 1:4) {
   
 }
 
+# Drop all combinations that only occur once in the data set
+# These represent a massive part of the table and we do not have high 
+# confidence in them
+freq_table <- freq_table[freq_table$frequency > 1,]
+
 freq_table$output <- unlist(lapply(freq_table$element, word, start=-1))
 freq_table$input <- NA
 freq_table[freq_table$n != 1,]$input <- unlist(lapply(freq_table[freq_table$n != 1,]$element, word, start=1, end=-2))
@@ -71,10 +76,7 @@ freq_table <- freq_table %>%
   relocate(output, .after=input) %>%
   subset(select = -(element))
 
-# Drop all combinations that only occur once in the data set
-# These represent a massive part of the table and we do not have high 
-# confidence in them
-freq_table <- freq_table[freq_table$frequency > 1,]
+
 
 # Only include the top 10 1-grams
 freq_table <- freq_table %>%
