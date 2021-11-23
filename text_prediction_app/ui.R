@@ -28,7 +28,7 @@ navbarPage("Data Science Capstone",
     tags$script(js2),
     
     # Application title
-    titlePanel(h1("N-Gram Text Prediction Algorithm", align = "center")),
+    titlePanel(h1("Markov Chain N-Gram Text Prediction Algorithm", align = "center")),
 
     #h3("Instructions", align = "center"),
     tags$div("Start typing some text and recommendations will populate below. 
